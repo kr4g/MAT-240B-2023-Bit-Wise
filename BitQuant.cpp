@@ -118,7 +118,7 @@ struct QuasiBandLimited : public AudioProcessor {
       float* data = buffer.getWritePointer(chan);
       for (int i = 0; i < buffer.getNumSamples(); ++i) {
         // bytebeat
-        // data[i] = ((t<<1)^((t<<1)+(t>>7)&t>>12))|t>>(4-(1^7&(t>>19)))|t>>7;
+        // data[i] = t*((t>>12|t>>8)&63&t>>4);
 
         // quasi synth
         float A = dbtoa(gain->get());
