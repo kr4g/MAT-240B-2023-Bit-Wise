@@ -67,6 +67,7 @@ struct QuasiBandLimited : public AudioProcessor {
   QuasiPulse qPulse;
 
   int32_t t{0};
+  int count{0};
   QuasiBandLimited()
       : AudioProcessor(BusesProperties()
                            .withInput("Input", AudioChannelSet::stereo())
@@ -115,59 +116,62 @@ struct QuasiBandLimited : public AudioProcessor {
     float rateDivisor = rateRedux->get();
     for (int chan = 0; chan < buffer.getNumChannels(); ++chan) {
       float* data = buffer.getWritePointer(chan);
-      // float* original = buffer.getWritePointer(chan);
       for (int i = 0; i < buffer.getNumSamples(); ++i) {
-          // quasi synth
-          float A = dbtoa(gain->get());
-          float freq = mtof(note->get());
-          
-          qSaw.set(freq);
-          qSaw.updateFilter(filter->get());
+        // bytebeat
+        // data[i] = ((t<<1)^((t<<1)+(t>>7)&t>>12))|t>>(4-(1^7&(t>>19)))|t>>7;
 
-          qPulse.set(freq);
-          qPulse.updateFilter(filter->get());
-          qPulse.pw = pulseWidth->get();
-          
-          // mix between QuasiPulse and QuasiSaw
-          data[i] = A * (oscMix->get() * qPulse() + (1 - oscMix->get()) * qSaw());
+        // quasi synth
+        float A = dbtoa(gain->get());
+        float freq = mtof(note->get());
+        
+        qSaw.set(freq);
+        qSaw.updateFilter(filter->get());
 
-          // bit reduction
-          float totalQLevels = powf(2, bitRedux->get() - 1);
-          int j = (int) (data[i] * totalQLevels);
-          data[i] = (float) j / totalQLevels;
+        qPulse.set(freq);
+        qPulse.updateFilter(filter->get());
+        qPulse.pw = pulseWidth->get();
+        
+        // mix between QuasiPulse and QuasiSaw
+        data[i] = A * (oscMix->get() * qPulse() + (1 - oscMix->get()) * qSaw());
 
-          if (rateDivisor > 1) {
-            if (i % static_cast<int>(rateDivisor) != 0) // why do I have to static cast??? I didn't have to before...
-              data[i] = data[i - i%static_cast<int>(rateDivisor)];
-              // TODO: Bresenham's line algorithm
+        // bit reduction
+        float totalQLevels = powf(2, bitRedux->get() - 1);
+        int j = (int) (data[i] * totalQLevels);
+        data[i] = (float) j / totalQLevels;
+
+        if (rateDivisor > 1) {
+          if (i % static_cast<int>(rateDivisor) != 0) // why do I have to static cast??? I didn't have to before...
+            data[i] = data[i - i%static_cast<int>(rateDivisor)];
+            // TODO: Bresenham's line algorithm
+        }
+
+        // bit operation -- TESTING - NOT WORKING PROPERLY
+        if (bitOp->get() != 0) {
+          BitwiseOp op;
+          switch (bitOp->get()) {
+            case 1: // AND
+              op = static_cast<BitwiseOp>(BitwiseOp::AND);
+              break;
+            case 2: // OR
+              op = static_cast<BitwiseOp>(BitwiseOp::OR);
+              break;
+            case 3: // XOR
+              op = static_cast<BitwiseOp>(BitwiseOp::XOR);
+              break;
+            case 4: // NOT
+              op = static_cast<BitwiseOp>(BitwiseOp::NOT);
+              break;
+            case 5: // SHIFT_LEFT
+              op = static_cast<BitwiseOp>(BitwiseOp::ROTATE_LEFT);
+              break;
           }
-
-          if (bitOp->get() != 0) {
-            // bit operation
-            BitwiseOp op;
-            switch (bitOp->get()) {
-              case 1: // AND
-                op = static_cast<BitwiseOp>(BitwiseOp::AND);
-                break;
-              case 2: // OR
-                op = static_cast<BitwiseOp>(BitwiseOp::OR);
-                break;
-              case 3: // XOR
-                op = static_cast<BitwiseOp>(BitwiseOp::XOR);
-                break;
-              case 4: // NOT
-                op = static_cast<BitwiseOp>(BitwiseOp::NOT);
-                break;
-              case 5: // SHIFT_LEFT
-                op = static_cast<BitwiseOp>(BitwiseOp::ROTATE_LEFT);
-                break;
-            }
-            int next_i = (i + sampleOffset->get()) % buffer.getNumSamples();
-            data[i] = bitwise(data[i], data[next_i], op);
-          }
-          data[i] = softclip(data[i]);
-          // data[i] = data[i] * (1 - alpha->get()) + original[i] * alpha->get();
+          int next_i = (i + sampleOffset->get()) % buffer.getNumSamples();
+          data[i] = bitwise(data[i], data[next_i], op);
+        }
+        data[i] = softclip(data[i]);
+        // data[i] = data[i] * (1 - alpha->get()) + original[i] * alpha->get();
       }
+      // if (count++ % 6 == 0) { ++t; }
     }
   }
 
