@@ -140,7 +140,7 @@ struct QuasiBandLimited : public AudioProcessor {
         data[i] = (float) j / totalQLevels;
 
         if (rateDivisor > 1) {
-          if (i % static_cast<int>(rateDivisor) != 0) // why do I have to static cast??? I didn't have to before...
+          if (i % static_cast<int>(rateDivisor) != 0) // why do I have to static cast now? I didn't have to before...
             data[i] = data[i - i%static_cast<int>(rateDivisor)];
             // TODO: Bresenham's line algorithm
         }
