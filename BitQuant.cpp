@@ -9,6 +9,8 @@
 #include "quasi.hpp"
 #include "Bitwise.h"
 
+#include <iostream>
+
 template <typename T>
 T mtof(T m) {
   return T(440) * pow(T(2), (m - T(69)) / T(12));
@@ -45,6 +47,21 @@ struct Cycle
   }
 };
 
+// t<<((t>>8&t)|(t>>14&t)) //strange rhythms
+
+struct LineOfC {
+  int t = 0;
+  int N, M, H; // SHIFTS (0, 32)
+  int Q; // MASK power of 2 minus 1 (63, 127, 7, 4095)
+  float operator()() {
+    // float v = char(t<<((t>>8&t)|(t>>14&t)));
+    // float v = char((t>>8&t)*(t>>15&t));
+    float v = char((t>>13&t)*(t>>8));
+    ++t;
+    return v;
+  }
+};
+
 using namespace juce;
 
 // http://scp.web.elte.hu/papers/synthesis1.pdf
@@ -61,12 +78,13 @@ struct QuasiBandLimited : public AudioProcessor {
   AudioParameterInt* bitOp;
   AudioParameterInt* sampleOffset;
   Cycle carrier, modulator;
+  LineOfC lineOfC;
   /// add parameters here ///////////////////////////////////////////////////
   /// add your objects here /////////////////////////////////////////////////
   QuasiSaw qSaw;
   QuasiPulse qPulse;
 
-  int32_t t{0};
+  // int32_t t{0};
   int count{0};
   QuasiBandLimited()
       : AudioProcessor(BusesProperties()
@@ -117,22 +135,20 @@ struct QuasiBandLimited : public AudioProcessor {
     for (int chan = 0; chan < buffer.getNumChannels(); ++chan) {
       float* data = buffer.getWritePointer(chan);
       for (int i = 0; i < buffer.getNumSamples(); ++i) {
-        // bytebeat
-        // data[i] = t*((t>>12|t>>8)&63&t>>4);
-
         // quasi synth
         float A = dbtoa(gain->get());
         float freq = mtof(note->get());
         
-        qSaw.set(freq);
-        qSaw.updateFilter(filter->get());
+        // qSaw.set(freq);
+        // qSaw.updateFilter(filter->get());
 
-        qPulse.set(freq);
-        qPulse.updateFilter(filter->get());
-        qPulse.pw = pulseWidth->get();
+        // qPulse.set(freq);
+        // qPulse.updateFilter(filter->get());
+        // qPulse.pw = pulseWidth->get();
         
         // mix between QuasiPulse and QuasiSaw
-        data[i] = A * (oscMix->get() * qPulse() + (1 - oscMix->get()) * qSaw());
+        // data[i] = A * (oscMix->get() * qPulse() + (1 - oscMix->get()) * qSaw());
+        data[i] = A * 0.6 * lineOfC();
 
         // bit reduction
         float totalQLevels = powf(2, bitRedux->get() - 1);
