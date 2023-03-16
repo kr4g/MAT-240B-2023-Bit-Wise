@@ -56,7 +56,9 @@ struct LineOfC {
   float operator()() {
     // float v = char(t<<((t>>8&t)|(t>>14&t)));
     // float v = char((t>>8&t)*(t>>15&t));
-    float v = char((t>>13&t)*(t>>8));
+    // float v = char((t>>13&t)*(t>>8));
+    float v = char(((t>>8&t)-(t>>3&t>>8|t>>16))&128);
+    v *= 0.003921568627450980392156862745098f; // 1/255
     ++t;
     return v;
   }
@@ -92,7 +94,7 @@ struct QuasiBandLimited : public AudioProcessor {
                            .withOutput("Output", AudioChannelSet::stereo())) {
     addParameter(gain = new AudioParameterFloat(
                      {"gain", 1}, "Gain",
-                     NormalisableRange<float>(-65, -1, 0.01f), -65));
+                     NormalisableRange<float>(-128, -1, 0.01f), -128));
     /// add parameters here /////////////////////////////////////////////////
     addParameter(note = new AudioParameterFloat(
                      {"note", 1}, "Pitch (MIDI)",
@@ -148,7 +150,7 @@ struct QuasiBandLimited : public AudioProcessor {
         
         // mix between QuasiPulse and QuasiSaw
         // data[i] = A * (oscMix->get() * qPulse() + (1 - oscMix->get()) * qSaw());
-        data[i] = A * 0.6 * lineOfC();
+        data[i] = A * lineOfC();
 
         // bit reduction
         float totalQLevels = powf(2, bitRedux->get() - 1);
