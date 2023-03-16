@@ -47,18 +47,17 @@ struct Cycle
   }
 };
 
-// t<<((t>>8&t)|(t>>14&t)) //strange rhythms
-
 struct LineOfC {
   int t = 0;
-  int N, M, H; // SHIFTS (0, 32)
-  int Q; // MASK power of 2 minus 1 (63, 127, 7, 4095)
+  // int N, M, H; // SHIFTS (0, 32)
+  // int Q; // MASK power of 2 minus 1 (63, 127, 7, 4095)
   float operator()() {
     // float v = char(t<<((t>>8&t)|(t>>14&t)));
     // float v = char((t>>8&t)*(t>>15&t));
-    // float v = char((t>>13&t)*(t>>8));
-    float v = char(((t>>8&t)-(t>>3&t>>8|t>>16))&128);
-    v *= 0.003921568627450980392156862745098f; // 1/255
+    float v = char((t>>13&t)*(t>>8));
+    // float v = char(((t>>8&t)-(t>>3&t>>8|t>>16))&128);
+    // float v = char((((t%(t>>16|t>>8))>>2)&t)-1);
+    v *= 0.078125f;
     ++t;
     return v;
   }
@@ -96,33 +95,33 @@ struct QuasiBandLimited : public AudioProcessor {
                      {"gain", 1}, "Gain",
                      NormalisableRange<float>(-128, -1, 0.01f), -128));
     /// add parameters here /////////////////////////////////////////////////
-    addParameter(note = new AudioParameterFloat(
-                     {"note", 1}, "Pitch (MIDI)",
-                     NormalisableRange<float>(-2, 129, 0.01f), 33));
-    addParameter(filter = new AudioParameterFloat(
-                     {"filter", 1}, "Filter",
-                     NormalisableRange<float>(0, 1.0f, 0.001f), 1.0f));
-    addParameter(pulseWidth = new AudioParameterFloat(
-                     {"pulseWidth", 1}, "qPulse Width",
-                     NormalisableRange<float>(0.1f, 0.9f, 0.0001f), 0.1f));
-    addParameter(oscMix = new AudioParameterFloat(
-                     {"quasiMix", 1}, "qSaw <--> qPulse",
-                     NormalisableRange<float>(0, 1, 0.001f), 0.5f));
+    // addParameter(note = new AudioParameterFloat(
+    //                  {"note", 1}, "Pitch (MIDI)",
+    //                  NormalisableRange<float>(-2, 129, 0.01f), 33));
+    // addParameter(filter = new AudioParameterFloat(
+    //                  {"filter", 1}, "Filter",
+    //                  NormalisableRange<float>(0, 1.0f, 0.001f), 1.0f));
+    // addParameter(pulseWidth = new AudioParameterFloat(
+    //                  {"pulseWidth", 1}, "qPulse Width",
+    //                  NormalisableRange<float>(0.1f, 0.9f, 0.0001f), 0.1f));
+    // addParameter(oscMix = new AudioParameterFloat(
+    //                  {"quasiMix", 1}, "qSaw <--> qPulse",
+    //                  NormalisableRange<float>(0, 1, 0.001f), 0.5f));
     addParameter(bitRedux = new AudioParameterFloat(
                      {"bitRedux", 1}, "Bit Depth",
                      NormalisableRange<float>(1, 32, 0.001f), 32.f));
     addParameter(rateRedux = new AudioParameterFloat(
                      {"rateRedux", 1}, "Sample Rate Divisor",
-                      NormalisableRange<float>(1, 500, 0.001f), 1.f));
-    addParameter(bitOp = new AudioParameterInt(
-                     {"bitOp", 1}, "Bit Operation",
-                     0, 5, 0));
-    addParameter(sampleOffset = new AudioParameterInt(
-                     {"sampleOffset", 1}, "Sample Offset",
-                     0, 1000, 0));
-    addParameter(alpha = new AudioParameterFloat(
-                     {"alpha", 1}, "Alpha",
-                     NormalisableRange<float>(0, 1, 0.001f), 0.0f));
+                      NormalisableRange<float>(1, 50, 0.001f), 1.f));
+    // addParameter(bitOp = new AudioParameterInt(
+    //                  {"bitOp", 1}, "Bit Operation",
+    //                  0, 5, 0));
+    // addParameter(sampleOffset = new AudioParameterInt(
+    //                  {"sampleOffset", 1}, "Sample Offset",
+    //                  0, 1000, 0));
+    // addParameter(alpha = new AudioParameterFloat(
+    //                  {"alpha", 1}, "Alpha",
+    //                  NormalisableRange<float>(0, 1, 0.001f), 0.0f));
   }
 
   /// this function handles the audio ///////////////////////////////////////
@@ -139,7 +138,7 @@ struct QuasiBandLimited : public AudioProcessor {
       for (int i = 0; i < buffer.getNumSamples(); ++i) {
         // quasi synth
         float A = dbtoa(gain->get());
-        float freq = mtof(note->get());
+        // float freq = mtof(note->get());
         
         // qSaw.set(freq);
         // qSaw.updateFilter(filter->get());
@@ -164,28 +163,28 @@ struct QuasiBandLimited : public AudioProcessor {
         }
 
         // bit operation -- TESTING - NOT WORKING PROPERLY
-        if (bitOp->get() != 0) {
-          BitwiseOp op;
-          switch (bitOp->get()) {
-            case 1: // AND
-              op = static_cast<BitwiseOp>(BitwiseOp::AND);
-              break;
-            case 2: // OR
-              op = static_cast<BitwiseOp>(BitwiseOp::OR);
-              break;
-            case 3: // XOR
-              op = static_cast<BitwiseOp>(BitwiseOp::XOR);
-              break;
-            case 4: // NOT
-              op = static_cast<BitwiseOp>(BitwiseOp::NOT);
-              break;
-            case 5: // SHIFT_LEFT
-              op = static_cast<BitwiseOp>(BitwiseOp::ROTATE_LEFT);
-              break;
-          }
-          int next_i = (i + sampleOffset->get()) % buffer.getNumSamples();
-          data[i] = bitwise(data[i], data[next_i], op);
-        }
+        // if (bitOp->get() != 0) {
+        //   BitwiseOp op;
+        //   switch (bitOp->get()) {
+        //     case 1: // AND
+        //       op = static_cast<BitwiseOp>(BitwiseOp::AND);
+        //       break;
+        //     case 2: // OR
+        //       op = static_cast<BitwiseOp>(BitwiseOp::OR);
+        //       break;
+        //     case 3: // XOR
+        //       op = static_cast<BitwiseOp>(BitwiseOp::XOR);
+        //       break;
+        //     case 4: // NOT
+        //       op = static_cast<BitwiseOp>(BitwiseOp::NOT);
+        //       break;
+        //     case 5: // SHIFT_LEFT
+        //       op = static_cast<BitwiseOp>(BitwiseOp::ROTATE_LEFT);
+        //       break;
+        //   }
+        //   int next_i = (i + sampleOffset->get()) % buffer.getNumSamples();
+        //   data[i] = bitwise(data[i], data[next_i], op);
+        // }
         data[i] = softclip(data[i]);
         // data[i] = data[i] * (1 - alpha->get()) + original[i] * alpha->get();
       }
