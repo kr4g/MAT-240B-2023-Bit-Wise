@@ -53,19 +53,45 @@ struct LineOfC {
   // int refresh = 256;
   // int N, M, H; // SHIFTS (0, 32)
   // int Q; // MASK power of 2 minus 1 (63, 127, 7, 4095)
-  float operator()(int t) {
-    // t = start;
-    // float v = char((t>>8&t)*(t>>15&t));
-
+  float operator()(int t, int bitOp = 0) {
+    float v;
     // float v = char(t<<((t>>8&t)|(t>>14&t)));
     // float v = char(((t*t)/(t^t>>8))&t);
-    float v = char(t*((t>>5|t>>8)>>(t>>16)));
     // float v = char((t>>13&t)*(t>>8));
-    // float v = char((t>>8&t)*t);
     // float v = char(((t>>8&t)-(t>>3&t>>8|t>>16))&128);
     // float v = char((((t%(t>>16|t>>8))>>2)&t)-1);
+
+    // float v = char(t*((t>>5|t>>8)>>(t>>16)));
+
+    switch (bitOp) {
+      case 0:
+        v = char(t>>t);
+        break;
+      case 1:
+        v = char(t*((t>>5|t>>8)>>(t>>16)));
+        break;
+      case 2:
+        v = char((t>>8&t)*(t>>15&t));
+        break;
+      case 3:
+        v = char((t>>8&t)*t);
+        break;
+      case 4:
+        v = char(((t*t)/(t^t>>8))&t);
+        break;
+      case 5:
+        v = char(((t>>8&t)-(t>>3&t>>8|t>>16))&128);
+        break;
+      case 6:
+        v = char(t<<((t>>8&t)|(t>>14&t)));
+        break;
+      default:
+        v = char(t);
+        break;
+    }
+
+
     v *= 0.078125f;
-    // t += 1 % (start + refresh);
     return v;
   }
 };
@@ -101,7 +127,7 @@ struct QuasiBandLimited : public AudioProcessor {
                            .withOutput("Output", AudioChannelSet::stereo())) {
     addParameter(gain = new AudioParameterFloat(
                      {"gain", 1}, "Gain",
-                     NormalisableRange<float>(-128, -1, 0.01f), -128));
+                     NormalisableRange<float>(-64, -1, 0.01f), -64));
     /// add parameters here /////////////////////////////////////////////////
     // addParameter(note = new AudioParameterFloat(
     //                  {"note", 1}, "Pitch (MIDI)",
@@ -115,11 +141,14 @@ struct QuasiBandLimited : public AudioProcessor {
     // addParameter(oscMix = new AudioParameterFloat(
     //                  {"quasiMix", 1}, "qSaw <--> qPulse",
     //                  NormalisableRange<float>(0, 1, 0.001f), 0.5f));
+    addParameter(bitOp = new AudioParameterInt(
+                     {"bitOp", 1}, "Equation",
+                     0, 6, 4));
     addParameter(sampleOffset = new AudioParameterInt(
-                     {"sampleOffset", 1}, "Position\nt",
+                     {"sampleOffset", 1}, "Position (t)",
                      0, 100000, 0));
     addParameter(sampleRefresh = new AudioParameterInt(
-                     {"sampleRefresh", 1}, "Window\n(t + n) % refreshRate",
+                     {"sampleRefresh", 1}, "Window Size (t + n)",
                      2, pow(2, 16), 2));
     addParameter(bitRedux = new AudioParameterFloat(
                      {"bitRedux", 1}, "Bit Depth",
@@ -127,9 +156,6 @@ struct QuasiBandLimited : public AudioProcessor {
     addParameter(rateRedux = new AudioParameterFloat(
                      {"rateRedux", 1}, "Sample Rate Divisor",
                       NormalisableRange<float>(1, 50, 0.001f), 1.f));
-    // addParameter(bitOp = new AudioParameterInt(
-    //                  {"bitOp", 1}, "Bit Operation",
-    //                  0, 5, 0));
     // addParameter(alpha = new AudioParameterFloat(
     //                  {"alpha", 1}, "Alpha",
     //                  NormalisableRange<float>(0, 1, 0.001f), 0.0f));
@@ -161,12 +187,11 @@ struct QuasiBandLimited : public AudioProcessor {
         // mix between QuasiPulse and QuasiSaw
         // data[i] = A * (oscMix->get() * qPulse() + (1 - oscMix->get()) * qSaw());
         // int start = sampleOffset->get();
+        int start = sampleOffset->get();
         int end = sampleRefresh->get();
-        // t = start;
-        data[i] = A * lineOfC(t + sampleOffset->get());
+        data[i] = A * lineOfC(t + start, bitOp->get());  // value of t and the equation to sample
         t = (t + 1) % end;
-        // ++t;
-        std::cout << t << std::endl;
+        // std::cout << t << std::endl;
 
         // bit reduction
         float totalQLevels = powf(2, bitRedux->get() - 1);
@@ -179,33 +204,8 @@ struct QuasiBandLimited : public AudioProcessor {
             // TODO: Bresenham's line algorithm
         }
 
-        // bit operation -- TESTING - NOT WORKING PROPERLY
-        // if (bitOp->get() != 0) {
-        //   BitwiseOp op;
-        //   switch (bitOp->get()) {
-        //     case 1: // AND
-        //       op = static_cast<BitwiseOp>(BitwiseOp::AND);
-        //       break;
-        //     case 2: // OR
-        //       op = static_cast<BitwiseOp>(BitwiseOp::OR);
-        //       break;
-        //     case 3: // XOR
-        //       op = static_cast<BitwiseOp>(BitwiseOp::XOR);
-        //       break;
-        //     case 4: // NOT
-        //       op = static_cast<BitwiseOp>(BitwiseOp::NOT);
-        //       break;
-        //     case 5: // SHIFT_LEFT
-        //       op = static_cast<BitwiseOp>(BitwiseOp::ROTATE_LEFT);
-        //       break;
-        //   }
-        //   int next_i = (i + sampleOffset->get()) % buffer.getNumSamples();
-        //   data[i] = bitwise(data[i], data[next_i], op);
-        // }
         data[i] = softclip(data[i]);
-        // data[i] = data[i] * (1 - alpha->get()) + original[i] * alpha->get();
       }
-      // if (count++ % 6 == 0) { ++t; }
     }
   }
 
