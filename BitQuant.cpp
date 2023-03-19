@@ -116,10 +116,10 @@ struct QuasiBandLimited : public AudioProcessor {
     //                  {"quasiMix", 1}, "qSaw <--> qPulse",
     //                  NormalisableRange<float>(0, 1, 0.001f), 0.5f));
     addParameter(sampleOffset = new AudioParameterInt(
-                     {"sampleOffset", 1}, "Sample Offset",
+                     {"sampleOffset", 1}, "Position\nt",
                      0, 100000, 0));
     addParameter(sampleRefresh = new AudioParameterInt(
-                     {"sampleRefresh", 1}, "Sample Refresh",
+                     {"sampleRefresh", 1}, "Window\n(t + n) % refreshRate",
                      2, pow(2, 16), 2));
     addParameter(bitRedux = new AudioParameterFloat(
                      {"bitRedux", 1}, "Bit Depth",
