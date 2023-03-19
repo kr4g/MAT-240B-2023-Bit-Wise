@@ -48,17 +48,24 @@ struct Cycle
 };
 
 struct LineOfC {
-  int t = 0;
+  // int t = 0;
+  // int start = 0;
+  // int refresh = 256;
   // int N, M, H; // SHIFTS (0, 32)
   // int Q; // MASK power of 2 minus 1 (63, 127, 7, 4095)
-  float operator()() {
-    // float v = char(t<<((t>>8&t)|(t>>14&t)));
+  float operator()(int t) {
+    // t = start;
     // float v = char((t>>8&t)*(t>>15&t));
-    float v = char((t>>13&t)*(t>>8));
+
+    // float v = char(t<<((t>>8&t)|(t>>14&t)));
+    // float v = char(((t*t)/(t^t>>8))&t);
+    float v = char(t*((t>>5|t>>8)>>(t>>16)));
+    // float v = char((t>>13&t)*(t>>8));
+    // float v = char((t>>8&t)*t);
     // float v = char(((t>>8&t)-(t>>3&t>>8|t>>16))&128);
     // float v = char((((t%(t>>16|t>>8))>>2)&t)-1);
     v *= 0.078125f;
-    ++t;
+    // t += 1 % (start + refresh);
     return v;
   }
 };
@@ -78,6 +85,7 @@ struct QuasiBandLimited : public AudioProcessor {
   AudioParameterFloat* alpha;
   AudioParameterInt* bitOp;
   AudioParameterInt* sampleOffset;
+  AudioParameterInt* sampleRefresh;
   Cycle carrier, modulator;
   LineOfC lineOfC;
   /// add parameters here ///////////////////////////////////////////////////
@@ -85,8 +93,8 @@ struct QuasiBandLimited : public AudioProcessor {
   QuasiSaw qSaw;
   QuasiPulse qPulse;
 
-  // int32_t t{0};
-  int count{0};
+  int t{0};
+  // int count{0};
   QuasiBandLimited()
       : AudioProcessor(BusesProperties()
                            .withInput("Input", AudioChannelSet::stereo())
@@ -107,6 +115,12 @@ struct QuasiBandLimited : public AudioProcessor {
     // addParameter(oscMix = new AudioParameterFloat(
     //                  {"quasiMix", 1}, "qSaw <--> qPulse",
     //                  NormalisableRange<float>(0, 1, 0.001f), 0.5f));
+    addParameter(sampleOffset = new AudioParameterInt(
+                     {"sampleOffset", 1}, "Sample Offset",
+                     0, 100000, 0));
+    addParameter(sampleRefresh = new AudioParameterInt(
+                     {"sampleRefresh", 1}, "Sample Refresh",
+                     2, pow(2, 16), 2));
     addParameter(bitRedux = new AudioParameterFloat(
                      {"bitRedux", 1}, "Bit Depth",
                      NormalisableRange<float>(1, 32, 0.001f), 32.f));
@@ -116,9 +130,6 @@ struct QuasiBandLimited : public AudioProcessor {
     // addParameter(bitOp = new AudioParameterInt(
     //                  {"bitOp", 1}, "Bit Operation",
     //                  0, 5, 0));
-    // addParameter(sampleOffset = new AudioParameterInt(
-    //                  {"sampleOffset", 1}, "Sample Offset",
-    //                  0, 1000, 0));
     // addParameter(alpha = new AudioParameterFloat(
     //                  {"alpha", 1}, "Alpha",
     //                  NormalisableRange<float>(0, 1, 0.001f), 0.0f));
@@ -149,7 +160,13 @@ struct QuasiBandLimited : public AudioProcessor {
         
         // mix between QuasiPulse and QuasiSaw
         // data[i] = A * (oscMix->get() * qPulse() + (1 - oscMix->get()) * qSaw());
-        data[i] = A * lineOfC();
+        // int start = sampleOffset->get();
+        int end = sampleRefresh->get();
+        // t = start;
+        data[i] = A * lineOfC(t + sampleOffset->get());
+        t = (t + 1) % end;
+        // ++t;
+        std::cout << t << std::endl;
 
         // bit reduction
         float totalQLevels = powf(2, bitRedux->get() - 1);
