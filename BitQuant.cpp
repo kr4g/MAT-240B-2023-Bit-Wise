@@ -109,7 +109,8 @@ struct QuasiBandLimited : public AudioProcessor {
   AudioParameterFloat* rateRedux;
   AudioParameterFloat* alpha;
   AudioParameterInt* bitOp;
-  AudioParameterInt* stereo;
+  AudioParameterInt* stereoOffsetAmt;
+  AudioParameterFloat* stereoOffsetGain;
   AudioParameterInt* sampleOffset;
   AudioParameterInt* sampleRefresh;
   Cycle carrier, modulator;
@@ -125,6 +126,9 @@ struct QuasiBandLimited : public AudioProcessor {
       : AudioProcessor(BusesProperties()
                            .withInput("Input", AudioChannelSet::stereo())
                            .withOutput("Output", AudioChannelSet::stereo())) {
+    addParameter(bitOp = new AudioParameterInt(
+                     {"bitOp", 1}, "Equation",
+                     0, 6, 4));
     addParameter(gain = new AudioParameterFloat(
                      {"gain", 1}, "Gain",
                      NormalisableRange<float>(-64, -1, 0.01f), -64));
@@ -138,18 +142,18 @@ struct QuasiBandLimited : public AudioProcessor {
     // addParameter(pulseWidth = new AudioParameterFloat(
     //                  {"pulseWidth", 1}, "qPulse Width",
     //                  NormalisableRange<float>(0.1f, 0.9f, 0.0001f), 0.1f));
-    addParameter(stereo = new AudioParameterInt(
-                     {"stereo", 1}, "Stereo",
-                     0, 1000, 0));
-    addParameter(bitOp = new AudioParameterInt(
-                     {"bitOp", 1}, "Equation",
-                     0, 6, 4));
     addParameter(sampleOffset = new AudioParameterInt(
                      {"sampleOffset", 1}, "Position (t)",
-                     0, 100000, 0));
+                     0, 1000000, 0));
     addParameter(sampleRefresh = new AudioParameterInt(
                      {"sampleRefresh", 1}, "Window Size (t + n)",
                      2, pow(2, 16), 2));
+    addParameter(stereoOffsetAmt = new AudioParameterInt(
+                     {"stereoOffsetAmt", 1}, "Offset Amt",
+                     0, 256, 0));
+    addParameter(stereoOffsetGain = new AudioParameterFloat(
+                     {"stereoOffsetGain", 1}, "Offset Gain",
+                     NormalisableRange<float>(-64, -1, 0.01f), -64));
     addParameter(bitRedux = new AudioParameterFloat(
                      {"bitRedux", 1}, "Bit Depth",
                      NormalisableRange<float>(1, 32, 0.001f), 32.f));
@@ -173,37 +177,39 @@ struct QuasiBandLimited : public AudioProcessor {
     for (int chan = 0; chan < buffer.getNumChannels(); ++chan) {
       float* data = buffer.getWritePointer(chan);
       for (int i = 0; i < buffer.getNumSamples(); ++i) {
-        // quasi synth
-        float A = dbtoa(gain->get());
-        // float freq = mtof(note->get());
-        
-        // qSaw.set(freq);
-        // qSaw.updateFilter(filter->get());
+        // bytebeat
+        float tOffset = t + stereoOffsetAmt->get() * chan;
 
-        // qPulse.set(freq);
-        // qPulse.updateFilter(filter->get());
-        // qPulse.pw = pulseWidth->get();
-        
-        // mix between QuasiPulse and QuasiSaw
-        // data[i] = A * (oscMix->get() * qPulse() + (1 - oscMix->get()) * qSaw());
-        // int start = sampleOffset->get();
+        float A = dbtoa(gain->get());
+        float gainOffset = dbtoa(stereoOffsetGain->get());
         int start = sampleOffset->get();
         int end = sampleRefresh->get();
-        data[i] = A * lineOfC(t + start, bitOp->get());  // value of t and the equation to sample
-        t = (t + 1) % end;
-        // std::cout << t << std::endl;
+        int chanOffset = stereoOffsetAmt->get() * chan;
+        // line of c-code
+        // data[i] = A * lineOfC(t + start, bitOp->get());  // value of t and the equation to sample
+        // t = (t + 1) % end; 
+        data[i] = A * lineOfC(t + start + chan*chanOffset, bitOp->get());  // value of t and the equation to sample
+        t = (t + 1 + chan*chanOffset) % (start + end + chan*chanOffset); 
+
+        // ***************************
+        // // something like this?
+        // dataOffset[i] = A * lineOfC(tOffset + start, bitOp->get());  // value of t and the equation to sample
+        // tOffset = (tOffset + 1) % end + chanOffset;
+        // ***************************
 
         // bit reduction
         float totalQLevels = powf(2, bitRedux->get() - 1);
         int j = (int) (data[i] * totalQLevels);
         data[i] = (float) j / totalQLevels;
 
+        // sample rate reduction
         if (rateDivisor > 1) {
           if (i % static_cast<int>(rateDivisor) != 0) // why do I have to static cast now? I didn't have to before...
             data[i] = data[i - i%static_cast<int>(rateDivisor)];
             // TODO: Bresenham's line algorithm
         }
 
+        // tanh softclip
         data[i] = softclip(data[i]);
       }
     }
