@@ -121,6 +121,7 @@ struct QuasiBandLimited : public AudioProcessor {
   // QuasiPulse qPulse;
   
   int t{0};
+  int t_offset{0};
   // int count{0};
   QuasiBandLimited()
       : AudioProcessor(BusesProperties()
@@ -150,10 +151,10 @@ struct QuasiBandLimited : public AudioProcessor {
                      2, pow(2, 16), 32));
     addParameter(stereoOffsetAmt = new AudioParameterInt(
                      {"stereoOffsetAmt", 1}, "Stereo Phase Offset Amt",
-                     0, 64, 0));
+                     0, pow(2, 16), 0));
     addParameter(stereoOffsetGain = new AudioParameterFloat(
                      {"stereoOffsetGain", 1}, "Offset Gain",
-                     NormalisableRange<float>(-64, -1, 0.01f), -64));
+                     NormalisableRange<float>(-256, -1, 0.01f), -256));
     addParameter(bitRedux = new AudioParameterFloat(
                      {"bitRedux", 1}, "Bit Depth",
                      NormalisableRange<float>(1, 32, 0.001f), 32.f));
@@ -173,41 +174,52 @@ struct QuasiBandLimited : public AudioProcessor {
     // auto left = buffer.getWritePointer(0, 0);
     // auto right = buffer.getWritePointer(1, 0);
     // left[0] = right[0] = dbtoa(gain->get());  // click!
-    // AudioSampleBuffer dataOffset;
     float rateDivisor = rateRedux->get();
     int start = t_n->get();
     int refreshRate = t_refreshRate->get();
     int end = start + refreshRate;
     int byteOp = byteBeatEquation->get();
-    std::cout << "start: " << start << " end: " << end << std::endl;
+
+    bool offset = stereoOffsetAmt->get();
+    int t_offsetAmt = stereoOffsetAmt->get();
+
+    // std::cout << "start: " << start << " end: " << end << std::endl;
     // int chanOffset = stereoOffsetAmt->get() * chan;
+    
+    AudioSampleBuffer dataOffsetBuffer;
+    int numSamples = buffer.getNumSamples();
+    // if (dataOffsetBuffer.getNumSamples() != numSamples) {
+    // }
+    dataOffsetBuffer.setSize(2, numSamples, false, true, true); // clears
+    dataOffsetBuffer.copyFrom(0, 0, buffer.getReadPointer(0), numSamples);
+    if (buffer.getNumChannels() > 1) dataOffsetBuffer.copyFrom(1, 0, buffer.getReadPointer(1), numSamples);
   
     for (int chan = 0; chan < buffer.getNumChannels(); ++chan) {
       // int t{0};
-      // dataOffset.copyFrom(chan, 0, buffer, chan, 0, buffer.getNumSamples());
       float* data = buffer.getWritePointer(chan);
+      float* dataOffset = dataOffsetBuffer.getWritePointer(chan);
+
       std::cout << "chan: " << chan << "t (in): " << t + start << std::endl;
       for (int i = 0; i < buffer.getNumSamples(); ++i) {
-        // bytebeat
-
-        // float t_Offset = t + stereoOffsetAmt->get() * chan;
-
         float A = dbtoa(gain->get());
-        // float gainOffset = dbtoa(stereoOffsetGain->get());
+        float B = dbtoa(stereoOffsetGain->get());
+        // --------------------------------
+        // HANDLE BYTEBEAT GRANULATION
+        // --------------------------------
+        // if t is out of bounds, reset t to start
+        if (t > (end + refreshRate) || t < start) { t = start; }
         // line of c-code
-        if (t > (end + refreshRate) || t < start) {
-          if (t > 512) std::cout << "------>>>>> t" << t << std::endl;
-          t = start;
-        }
-        // std::cout << "lineOfC(t + start, equation): lineOfC(" << t + start << ", ...\n";
-        data[i] = A * lineOfC(t, byteOp);  // value of t and the equation to sample
-        ++t;
+        data[i] = A * lineOfC(t++, byteOp);  // value of t and the equation to sample
 
-        // ***************************
-        // // something like this?
-        // dataOffset[i] = A * lineOfC(t_Offset + start, byteBeatEquation->get());  // value of t and the equation to sample
-        // t_Offset = (t_Offset + 1) % end + chanOffset;
-        // ***************************
+        if (offset) {
+            // if t_offset is out of bounds, reset t_offset to start + t_offsetAmt
+            if (t_offset > (end + t_offsetAmt) || t_offset < start + t_offsetAmt) { t_offset = start + t_offsetAmt; }
+          // line of c-code
+          dataOffset[i] = B * lineOfC(t_offset++, byteOp);  // value of t and the equation to sample
+          buffer.addFrom(chan, 0, dataOffsetBuffer.getReadPointer(chan), numSamples);
+        }
+        // --------------------------------
+        // --------------------------------
 
         // bit reduction
         float totalQLevels = powf(2, bitRedux->get() - 1);
@@ -223,6 +235,11 @@ struct QuasiBandLimited : public AudioProcessor {
 
         // tanh softclip
         data[i] = softclip(data[i]);
+
+        // if (offset) {
+        //   dataOffset[i] = softclip(dataOffset[i]);
+        //   // buffer.addFrom(chan, 0, dataOffsetBuffer.getReadPointer(chan), numSamples);
+        // }
       }
       std::cout << "chan: " << chan << " t (out): " << t << std::endl;
     }
