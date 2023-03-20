@@ -103,13 +103,13 @@ using namespace juce;
 struct QuasiBandLimited : public AudioProcessor {
   AudioParameterFloat* gain;
   AudioParameterFloat* note;
-  AudioParameterFloat* oscMix;
   AudioParameterFloat* filter;
   AudioParameterFloat* pulseWidth;
   AudioParameterFloat* bitRedux;
   AudioParameterFloat* rateRedux;
   AudioParameterFloat* alpha;
   AudioParameterInt* bitOp;
+  AudioParameterInt* stereo;
   AudioParameterInt* sampleOffset;
   AudioParameterInt* sampleRefresh;
   Cycle carrier, modulator;
@@ -138,9 +138,9 @@ struct QuasiBandLimited : public AudioProcessor {
     // addParameter(pulseWidth = new AudioParameterFloat(
     //                  {"pulseWidth", 1}, "qPulse Width",
     //                  NormalisableRange<float>(0.1f, 0.9f, 0.0001f), 0.1f));
-    // addParameter(oscMix = new AudioParameterFloat(
-    //                  {"quasiMix", 1}, "qSaw <--> qPulse",
-    //                  NormalisableRange<float>(0, 1, 0.001f), 0.5f));
+    addParameter(stereo = new AudioParameterInt(
+                     {"stereo", 1}, "Stereo",
+                     0, 1000, 0));
     addParameter(bitOp = new AudioParameterInt(
                      {"bitOp", 1}, "Equation",
                      0, 6, 4));
