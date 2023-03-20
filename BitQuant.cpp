@@ -53,7 +53,7 @@ struct LineOfC {
   // int refresh = 256;
   // int N, M, H; // SHIFTS (0, 32)
   // int Q; // MASK power of 2 minus 1 (63, 127, 7, 4095)
-  float operator()(int t, int bitOp = 0) {
+  float operator()(int t, int byteBeatEquation = 0) {
     float v;
     // float v = char(t<<((t>>8&t)|(t>>14&t)));
     // float v = char(((t*t)/(t^t>>8))&t);
@@ -63,7 +63,7 @@ struct LineOfC {
 
     // float v = char(t*((t>>5|t>>8)>>(t>>16)));
 
-    switch (bitOp) {
+    switch (byteBeatEquation) {
       case 0:
         v = char(t>>t);
         break;
@@ -102,32 +102,32 @@ using namespace juce;
 
 struct QuasiBandLimited : public AudioProcessor {
   AudioParameterFloat* gain;
-  AudioParameterFloat* note;
-  AudioParameterFloat* filter;
-  AudioParameterFloat* pulseWidth;
+  // AudioParameterFloat* note;
+  // AudioParameterFloat* filter;
+  // AudioParameterFloat* pulseWidth;
   AudioParameterFloat* bitRedux;
   AudioParameterFloat* rateRedux;
-  AudioParameterFloat* alpha;
-  AudioParameterInt* bitOp;
+  // AudioParameterFloat* alpha;
+  AudioParameterInt* byteBeatEquation;
   AudioParameterInt* stereoOffsetAmt;
   AudioParameterFloat* stereoOffsetGain;
-  AudioParameterInt* sampleOffset;
-  AudioParameterInt* sampleRefresh;
-  Cycle carrier, modulator;
+  AudioParameterInt* t_n;
+  AudioParameterInt* t_refreshRate;
+  // Cycle carrier, modulator;
   LineOfC lineOfC;
   /// add parameters here ///////////////////////////////////////////////////
   /// add your objects here /////////////////////////////////////////////////
-  QuasiSaw qSaw;
-  QuasiPulse qPulse;
-
+  // QuasiSaw qSaw;
+  // QuasiPulse qPulse;
+  
   int t{0};
   // int count{0};
   QuasiBandLimited()
       : AudioProcessor(BusesProperties()
                            .withInput("Input", AudioChannelSet::stereo())
                            .withOutput("Output", AudioChannelSet::stereo())) {
-    addParameter(bitOp = new AudioParameterInt(
-                     {"bitOp", 1}, "Equation",
+    addParameter(byteBeatEquation = new AudioParameterInt(
+                     {"byteBeatEquation", 1}, "Equation",
                      0, 6, 4));
     addParameter(gain = new AudioParameterFloat(
                      {"gain", 1}, "Gain",
@@ -142,15 +142,15 @@ struct QuasiBandLimited : public AudioProcessor {
     // addParameter(pulseWidth = new AudioParameterFloat(
     //                  {"pulseWidth", 1}, "qPulse Width",
     //                  NormalisableRange<float>(0.1f, 0.9f, 0.0001f), 0.1f));
-    addParameter(sampleOffset = new AudioParameterInt(
-                     {"sampleOffset", 1}, "Position (t)",
+    addParameter(t_n = new AudioParameterInt(
+                     {"t_n", 1}, "Position (t_n)",
                      0, 1000000, 0));
-    addParameter(sampleRefresh = new AudioParameterInt(
-                     {"sampleRefresh", 1}, "Window Size (t + n)",
-                     2, pow(2, 16), 2));
+    addParameter(t_refreshRate = new AudioParameterInt(
+                     {"t_refreshRate", 1}, "Window Size",
+                     2, pow(2, 16), 32));
     addParameter(stereoOffsetAmt = new AudioParameterInt(
-                     {"stereoOffsetAmt", 1}, "Offset Amt",
-                     0, 256, 0));
+                     {"stereoOffsetAmt", 1}, "Stereo Phase Offset Amt",
+                     0, 64, 0));
     addParameter(stereoOffsetGain = new AudioParameterFloat(
                      {"stereoOffsetGain", 1}, "Offset Gain",
                      NormalisableRange<float>(-64, -1, 0.01f), -64));
@@ -173,28 +173,40 @@ struct QuasiBandLimited : public AudioProcessor {
     // auto left = buffer.getWritePointer(0, 0);
     // auto right = buffer.getWritePointer(1, 0);
     // left[0] = right[0] = dbtoa(gain->get());  // click!
+    // AudioSampleBuffer dataOffset;
     float rateDivisor = rateRedux->get();
+    int start = t_n->get();
+    int refreshRate = t_refreshRate->get();
+    int end = start + refreshRate;
+    int byteOp = byteBeatEquation->get();
+    std::cout << "start: " << start << " end: " << end << std::endl;
+    // int chanOffset = stereoOffsetAmt->get() * chan;
+  
     for (int chan = 0; chan < buffer.getNumChannels(); ++chan) {
+      // int t{0};
+      // dataOffset.copyFrom(chan, 0, buffer, chan, 0, buffer.getNumSamples());
       float* data = buffer.getWritePointer(chan);
+      std::cout << "chan: " << chan << "t (in): " << t + start << std::endl;
       for (int i = 0; i < buffer.getNumSamples(); ++i) {
         // bytebeat
-        float tOffset = t + stereoOffsetAmt->get() * chan;
+
+        // float t_Offset = t + stereoOffsetAmt->get() * chan;
 
         float A = dbtoa(gain->get());
-        float gainOffset = dbtoa(stereoOffsetGain->get());
-        int start = sampleOffset->get();
-        int end = sampleRefresh->get();
-        int chanOffset = stereoOffsetAmt->get() * chan;
+        // float gainOffset = dbtoa(stereoOffsetGain->get());
         // line of c-code
-        // data[i] = A * lineOfC(t + start, bitOp->get());  // value of t and the equation to sample
-        // t = (t + 1) % end; 
-        data[i] = A * lineOfC(t + start + chan*chanOffset, bitOp->get());  // value of t and the equation to sample
-        t = (t + 1 + chan*chanOffset) % (start + end + chan*chanOffset); 
+        if (t > (end + refreshRate) || t < start) {
+          if (t > 512) std::cout << "------>>>>> t" << t << std::endl;
+          t = start;
+        }
+        // std::cout << "lineOfC(t + start, equation): lineOfC(" << t + start << ", ...\n";
+        data[i] = A * lineOfC(t, byteOp);  // value of t and the equation to sample
+        ++t;
 
         // ***************************
         // // something like this?
-        // dataOffset[i] = A * lineOfC(tOffset + start, bitOp->get());  // value of t and the equation to sample
-        // tOffset = (tOffset + 1) % end + chanOffset;
+        // dataOffset[i] = A * lineOfC(t_Offset + start, byteBeatEquation->get());  // value of t and the equation to sample
+        // t_Offset = (t_Offset + 1) % end + chanOffset;
         // ***************************
 
         // bit reduction
@@ -212,6 +224,7 @@ struct QuasiBandLimited : public AudioProcessor {
         // tanh softclip
         data[i] = softclip(data[i]);
       }
+      std::cout << "chan: " << chan << " t (out): " << t << std::endl;
     }
   }
 
