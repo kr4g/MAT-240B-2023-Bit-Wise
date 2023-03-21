@@ -74,3 +74,23 @@ int32_t bitScramble(int32_t value, int32_t seed);
 int32_t floatTo24bit(float value);
 
 float intToFloat24bit(int32_t value);
+
+
+using ByteBeatEquation = std::function<float(int)>;
+
+static const std::map<int, ByteBeatEquation> BYTE_BEAT_EQUATIONS = {
+    {0, [](int t) { return char((t % 255 & t) - (t >> 13 & t)); }}, // (t%255&t)-(t>>13&t)
+    {1, [](int t) { return char((t & t % 255) - (t >> 13 & (t % (t >> 8 | t >> 16)))); }}, // (t&t%255)-(t>>13&(t%(t>>8|t>>16)))
+    {2, [](int t) { return char(t * (t >> 10 & ((t >> 16) + 1))); }}, // t*(t>>10&((t>>16)+1))  //cycles through all t*(t>>10&) melodies, like the 42 melody
+    {3, [](int t) { return char((t >> 10) ^ (t >> 14) | (t >> 12) * 42319); }}, // (t>>10)^(t>>14)|(t>>12)*42319 //basic rng w/ slight bias to fliping between high and low
+    {4, [](int t) { return char(t >> t); }}, // t>>t //odd thing
+    {5, [](int t) { return char((t >> 8 & t) * t); }}, // (t>>8&t)*t //chaotic
+    {6, [](int t) { return char((t >> 13 & t) * (t >> 8)); }}, // (t>>13&t)*(t>>8) //Slower version, has interesting properties
+    {7, [](int t) { return char((t >> 8 & t) * (t >> 15 & t)); }}, // (t>>8&t)*(t>>15&t) //Ambient
+    {8, [](int t) { return char((t % (t >> 8 | t >> 16)) ^ t); }}, // (t%(t>>8|t>>16))^t //mod fractal tree cycles through different rhythms
+    {9, [](int t) { return char(t % (t >> 8 | t >> 16)); }}, // t%(t>>8|t>>16)  //Acts like t and can be used for cool effect. Generates interesting and infinite rhythm variations.
+    {10, [](int t) { return char(-0.99999999 * t * t); }}, // -0.99999999*t*t //Add more 9s to make slower, remove to make faster.
+    {11, [](int t) { return char(t % (t >> 13 & t)); }}, // t%(t>>13&t) //Quiet, do -1 for to make louder and change the rhythm slightly.
+    {12, [](int t) { return char(((t % (t >> 16 | t >> 8)) >> 2) & t) - 1; }}, // (((t%(t>>16|t>>8))>>2)&t)-1 //WARNING LOUD! Some kind of glitchcore thing?
+    // ... Add the rest of the formulas with their respective comments here
+};

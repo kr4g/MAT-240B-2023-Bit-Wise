@@ -48,48 +48,15 @@ struct Cycle
 };
 
 struct LineOfC {
-  // int t = 0;
-  // int start = 0;
-  // int refresh = 256;
-  // int N, M, H; // SHIFTS (0, 32)
-  // int Q; // MASK power of 2 minus 1 (63, 127, 7, 4095)
   float operator()(int t, int byteBeatEquation = 0) {
-    float v;
-    // float v = char(t<<((t>>8&t)|(t>>14&t)));
-    // float v = char(((t*t)/(t^t>>8))&t);
-    // float v = char((t>>13&t)*(t>>8));
-    // float v = char(((t>>8&t)-(t>>3&t>>8|t>>16))&128);
-    // float v = char((((t%(t>>16|t>>8))>>2)&t)-1);
+    float v = BYTE_BEAT_EQUATIONS.at(byteBeatEquation)(t);
 
-    // float v = char(t*((t>>5|t>>8)>>(t>>16)));
-
-    switch (byteBeatEquation) {
-      case 0:
-        v = char(t>>t);
-        break;
-      case 1:
-        v = char(t*((t>>5|t>>8)>>(t>>16)));
-        break;
-      case 2:
-        v = char((t>>8&t)*(t>>15&t));
-        break;
-      case 3:
-        v = char((t>>8&t)*t);
-        break;
-      case 4:
-        v = char(((t*t)/(t^t>>8))&t);
-        break;
-      case 5:
-        v = char(((t>>8&t)-(t>>3&t>>8|t>>16))&128);
-        break;
-      case 6:
-        v = char(t<<((t>>8&t)|(t>>14&t)));
-        break;
-      default:
-        v = char(t);
-        break;
-    }
-
+    // auto it = BYTE_BEAT_EQUATIONS.find(byteBeatEquation);
+    // if (it != BYTE_BEAT_EQUATIONS.end()) {
+    //   v = it->second(t);
+    // } else {
+    //   v = char(t);
+    // }
 
     v *= 0.078125f;
     return v;
@@ -113,7 +80,7 @@ struct QuasiBandLimited : public AudioProcessor {
   AudioParameterFloat* stereoOffsetGain;
   AudioParameterInt* t_n;
   AudioParameterInt* t_refreshRate;
-  // Cycle carrier, modulator;
+
   LineOfC lineOfC;
   /// add parameters here ///////////////////////////////////////////////////
   /// add your objects here /////////////////////////////////////////////////
@@ -129,7 +96,7 @@ struct QuasiBandLimited : public AudioProcessor {
                            .withOutput("Output", AudioChannelSet::stereo())) {
     addParameter(byteBeatEquation = new AudioParameterInt(
                      {"byteBeatEquation", 1}, "Equation",
-                     0, 6, 4));
+                     0, BYTE_BEAT_EQUATIONS.size() - 1, 11));
     addParameter(gain = new AudioParameterFloat(
                      {"gain", 1}, "Gain",
                      NormalisableRange<float>(-64, -1, 0.01f), -64));
@@ -154,13 +121,13 @@ struct QuasiBandLimited : public AudioProcessor {
                      0, pow(2, 16), 0));
     addParameter(stereoOffsetGain = new AudioParameterFloat(
                      {"stereoOffsetGain", 1}, "Offset Gain",
-                     NormalisableRange<float>(-256, -1, 0.01f), -256));
+                     NormalisableRange<float>(-64, -1, 0.01f), -64));
     addParameter(bitRedux = new AudioParameterFloat(
                      {"bitRedux", 1}, "Bit Depth",
                      NormalisableRange<float>(1, 32, 0.001f), 32.f));
     addParameter(rateRedux = new AudioParameterFloat(
                      {"rateRedux", 1}, "Sample Rate Divisor",
-                      NormalisableRange<float>(1, 50, 0.001f), 1.f));
+                      NormalisableRange<float>(1, 256, 0.001f), 1.f));
     // addParameter(alpha = new AudioParameterFloat(
     //                  {"alpha", 1}, "Alpha",
     //                  NormalisableRange<float>(0, 1, 0.001f), 0.0f));
@@ -171,8 +138,6 @@ struct QuasiBandLimited : public AudioProcessor {
     /// put your own code here instead of this code /////////////////////////
     buffer.clear(0, 0, buffer.getNumSamples());
     buffer.clear(1, 0, buffer.getNumSamples());
-    // auto left = buffer.getWritePointer(0, 0);
-    // auto right = buffer.getWritePointer(1, 0);
     // left[0] = right[0] = dbtoa(gain->get());  // click!
     float rateDivisor = rateRedux->get();
     int start = t_n->get();
@@ -183,26 +148,18 @@ struct QuasiBandLimited : public AudioProcessor {
     bool offset = stereoOffsetAmt->get();
     int t_offsetAmt = stereoOffsetAmt->get();
 
-    // std::cout << "start: " << start << " end: " << end << std::endl;
-    // int chanOffset = stereoOffsetAmt->get() * chan;
-    
     AudioSampleBuffer dataOffsetBuffer;
     int numSamples = buffer.getNumSamples();
-    // if (dataOffsetBuffer.getNumSamples() != numSamples) {
-    // }
     dataOffsetBuffer.setSize(2, numSamples, false, true, true); // clears
     dataOffsetBuffer.copyFrom(0, 0, buffer.getReadPointer(0), numSamples);
     if (buffer.getNumChannels() > 1) dataOffsetBuffer.copyFrom(1, 0, buffer.getReadPointer(1), numSamples);
   
     for (int chan = 0; chan < buffer.getNumChannels(); ++chan) {
-      // int t{0};
       float* data = buffer.getWritePointer(chan);
       float* dataOffset = dataOffsetBuffer.getWritePointer(chan);
-
-      std::cout << "chan: " << chan << "t (in): " << t + start << std::endl;
       for (int i = 0; i < buffer.getNumSamples(); ++i) {
-        float A = dbtoa(gain->get());
-        float B = dbtoa(stereoOffsetGain->get());
+        float A = dbtoa(gain->get())             * 0.01f;
+        float B = dbtoa(stereoOffsetGain->get()) * 0.0001f;
         // --------------------------------
         // HANDLE BYTEBEAT GRANULATION
         // --------------------------------
@@ -235,13 +192,7 @@ struct QuasiBandLimited : public AudioProcessor {
 
         // tanh softclip
         data[i] = softclip(data[i]);
-
-        // if (offset) {
-        //   dataOffset[i] = softclip(dataOffset[i]);
-        //   // buffer.addFrom(chan, 0, dataOffsetBuffer.getReadPointer(chan), numSamples);
-        // }
       }
-      std::cout << "chan: " << chan << " t (out): " << t << std::endl;
     }
   }
 
