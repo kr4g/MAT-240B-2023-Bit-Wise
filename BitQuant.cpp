@@ -76,6 +76,7 @@ struct QuasiBandLimited : public AudioProcessor {
   AudioParameterFloat* rateRedux;
   // AudioParameterFloat* alpha;
   AudioParameterInt* byteBeatEquation;
+  AudioParameterInt* byteBeatOffsetEquation;
   AudioParameterInt* stereoOffsetAmt;
   AudioParameterFloat* stereoOffsetGain;
   AudioParameterInt* t_n;
@@ -116,6 +117,9 @@ struct QuasiBandLimited : public AudioProcessor {
     addParameter(t_refreshRate = new AudioParameterInt(
                      {"t_refreshRate", 1}, "Window Size",
                      2, pow(2, 16), 32));
+    addParameter(byteBeatOffsetEquation = new AudioParameterInt(
+                     {"byteBeatOffsetEquation", 1}, "Offset Equation",
+                      0, BYTE_BEAT_EQUATIONS.size() - 1, 11));
     addParameter(stereoOffsetAmt = new AudioParameterInt(
                      {"stereoOffsetAmt", 1}, "Stereo Phase Offset Amt",
                      0, pow(2, 16), 0));
@@ -144,6 +148,7 @@ struct QuasiBandLimited : public AudioProcessor {
     int refreshRate = t_refreshRate->get();
     int end = start + refreshRate;
     int byteOp = byteBeatEquation->get();
+    int byteOpOffset = byteBeatOffsetEquation->get();
 
     bool offset = stereoOffsetAmt->get();
     int t_offsetAmt = stereoOffsetAmt->get();
@@ -172,7 +177,7 @@ struct QuasiBandLimited : public AudioProcessor {
             // if t_offset is out of bounds, reset t_offset to start + t_offsetAmt
             if (t_offset > (end + t_offsetAmt) || t_offset < start + t_offsetAmt) { t_offset = start + t_offsetAmt; }
           // line of c-code
-          dataOffset[i] = B * lineOfC(t_offset++, byteOp);  // value of t and the equation to sample
+          dataOffset[i] = B * lineOfC(t_offset++, byteOpOffset);  // value of t and the equation to sample
           buffer.addFrom(chan, 0, dataOffsetBuffer.getReadPointer(chan), numSamples);
         }
         // --------------------------------
