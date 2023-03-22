@@ -1,6 +1,7 @@
 #include <bitset>
 
 #include <cmath>
+#include <math.h>
 #include <climits>
 #include <functional>
 #include <map>
@@ -91,6 +92,18 @@ static const std::map<int, ByteBeatEquation> BYTE_BEAT_EQUATIONS = {
     {9, [](int t) { return char(t % (t >> 8 | t >> 16)); }}, // t%(t>>8|t>>16)  //Acts like t and can be used for cool effect. Generates interesting and infinite rhythm variations.
     {10, [](int t) { return char(-0.99999999 * t * t); }}, // -0.99999999*t*t //Add more 9s to make slower, remove to make faster.
     {11, [](int t) { return char(t % (t >> 13 & t)); }}, // t%(t>>13&t) //Quiet, do -1 for to make louder and change the rhythm slightly.
-    {12, [](int t) { return char(((t % (t >> 16 | t >> 8)) >> 2) & t) - 1; }}, // (((t%(t>>16|t>>8))>>2)&t)-1 //WARNING LOUD! Some kind of glitchcore thing?
-    // ... Add the rest of the formulas with their respective comments here
+    {12, [](int t) { return char(((t >> 8 & t >> 4) >> (t >> 16 & t >> 8)) * t); }}, // ((t>>8&t>>4)>>(t>>16&t>>8))*t //Not really sure.
+    {13, [](int t) { return char((((t * t) & t >> 8) / t) - 1); }}, // (((t*t) & t>>8)/t)-1 //t>>8&t variation?
+    {14, [](int t) { return char(t % (t >> 11 ^ t >> 12)); }}, // t%(t>>11^t>>12) //Another t like formula. Also a sweet 11khz song
+    {15, [](int t) { return char(t % (t >> 4 ^ t >> 16)); }}, // t%(t>>4^t>>16) // 22 khz only
+    {16, [](int t) { return char(t * (t >> (t >> 13 & t))); }}, // t*(t>>(t>>13&t)) //i don't even
+    {17, [](int t) { return char((t - (t >> 4 & t >> 8) & t >> 12) - 1); }}, // (t-(t>>4&t>>8)&t>>12)-1 //The 8-bit echo, to play with, edit t>>12 to a number. Powers of 2 give square waves, powers of 2-1 give sawtooth, others are from t>>8&t. Change t>>12 to t>>n to speed up or slow down. Remove -1 for starting quiet.
+    {18, [](int t) { return char((((t % (t >> 16 | t >> 8)) >> 2) & t) - 1); }}, // (((t%(t>>16|t>>8))>>2)&t)-1 //WARNING LOUD! Some kind of glitchcore thing?
+    {19, [](int t) { return char((((t % (t >> 1 | t >> 9)) >> 2) & t) - 1); }}, // (((t%(t>>1|t>>9))>>2)&t)-1 //Variation on above.
+    {20, [](int t) { return char(((t >> 8 & t >> 16) - (t >> 3 & t >> 8 | t >> 16)) & 128); }}, // ((t>>8&t)-(t>>3&t>>8|t>>16))&128 //Pulse wave heaven, General formula: ((BYTEBEAT1)-(BYTEBEAT2))&MULTOF2, bytebeat1 can be just "1"
+    {21, [](int t) { return char((t ^ t >> 8) * (t >> 16 & t)); }}, // (t^t>>8)*(t>>16&t) //dance of the fractals
+    {22, [](int t) { return char((t * t) / (t ^ t >> 12)); }}, // (t*t)/(t^t>>12) //Voice changes
+    {23, [](int t) { return char(((t * t) / (t ^ t >> 8)) & t); }}, // ((t*t)/(t^t>>8))&t //fractal heaven
+    {24, [](int t) { return char((t >> 4 & t >> 8) * (t >> 16 & t)); }}, // (t>>4 & t>>8)*(t>>16&t) //t>>4&t>>8 builder
+    {25, [](int t) { return char((t >> 4 & t >> 8) / (t >> 16 & t)); }}, // (t>>4 & t>>8)/(t>>16&t) //dialtones
 };

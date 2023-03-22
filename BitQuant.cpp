@@ -163,8 +163,8 @@ struct QuasiBandLimited : public AudioProcessor {
       float* data = buffer.getWritePointer(chan);
       float* dataOffset = dataOffsetBuffer.getWritePointer(chan);
       for (int i = 0; i < buffer.getNumSamples(); ++i) {
-        float A = dbtoa(gain->get())             * 0.01f;
-        float B = dbtoa(stereoOffsetGain->get()) * 0.0001f;
+        float A = dbtoa(gain->get())             * 0.05f;
+        float B = dbtoa(stereoOffsetGain->get()) * 0.0005f;
         // --------------------------------
         // HANDLE BYTEBEAT GRANULATION
         // --------------------------------
