@@ -1,3 +1,5 @@
+https://www.reddit.com/r/bytebeat/comments/20km9l/cool_equations/
+
 (t%255&t)-(t>>13&t)
 
 (t&t%255)-(t>>13&(t%(t>>8|t>>16)))

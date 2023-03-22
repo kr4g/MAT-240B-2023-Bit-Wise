@@ -79,6 +79,8 @@ float intToFloat24bit(int32_t value);
 
 using ByteBeatEquation = std::function<float(int)>;
 
+// Bytebeat Equations
+// https://www.reddit.com/r/bytebeat/comments/20km9l/cool_equations/
 static const std::map<int, ByteBeatEquation> BYTE_BEAT_EQUATIONS = {
     {0, [](int t) { return char((t % 255 & t) - (t >> 13 & t)); }}, // (t%255&t)-(t>>13&t)
     {1, [](int t) { return char((t & t % 255) - (t >> 13 & (t % (t >> 8 | t >> 16)))); }}, // (t&t%255)-(t>>13&(t%(t>>8|t>>16)))
